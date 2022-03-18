@@ -7,7 +7,7 @@ layout: two-cols
 <img alt="sigmoid wrong" src="/images/sigmoid-wrong.png" />
 
 1. if we apply a thresh-hold of say 0.5
-   - $H_{21} = 0.84$ and $H_{22 = 0.67}$ belongs to two classes. 
+   - $H_{21} = 0.84$ and $H_{22} = 0.67$ belongs to two classes. 
 2. probability values don't add up to 100%.
    - 84% chance of being ~~cat~~ $H_{21}$
    - 78% chance of being ~~NOT cat~~ NOT $H_{21}$???
