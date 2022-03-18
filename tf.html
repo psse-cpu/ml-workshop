@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+
+  <style>
+    canvas {
+      width: 200px;
+      height: 200px;
+    }
+
+
+    #history {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+    #history div {
+      margin: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+</head>
+<body style="display: flex;">
+  <canvas 
+    width="200" height="200"
+    onmousedown="startPainting(event)"
+    onmouseup="stopPainting(event)"
+    onmousemove="sketch(event)"
+    onmouseout="painting = false"
+    ontouchstart="startPainting(event)"
+    ontouchend="stopPainting(event)"
+    ontouchmove="sketch(event)"
+    ontouchcancel="painting = false"
+  >
+  </canvas>
+
+  <div id="hist-container">
+    <h2>Prediction starts when you stop writing for TWO seconds.</h2> 
+    <h3>Pls. write one digit only.  This has no <a href="https://medium.com/@quangnhatnguyenle/detect-and-recognize-vehicles-license-plate-with-machine-learning-and-python-part-2-plate-de644de9849f">Character Segmentation yet</a></h3>
+
+    <div id="history">
+
+    </div>
+  </div>
+</body>
+</html>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script>
+  let painting = false
+  let context
+  let timer
+  let model
+  let canvas
+  let hasDrawn = false
+
+  const coord = { x: 0, y: 0 }
+  
+  window.onload = async () => {
+    canvas = document.querySelector('canvas')
+    context = canvas.getContext('2d')
+    context.strokeStyle = 'white'
+    context.lineWidth = 16
+    context.lineCap = 'round'
+    context.lineJoin = 'round'
+
+    context.fillStyle = 'black'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    model = await tf.loadLayersModel('/ml-workshop/model.json')
+  }
+
+  const updateCoords = (event) => {
+    const touchEvent = event // ignore duplicate vars, converted from TS
+    const mouseEvent = event
+
+    const mouseX = touchEvent.changedTouches
+                   ? touchEvent.changedTouches[0].clientX
+                   : mouseEvent.offsetX
+    const mouseY = touchEvent.touches 
+                   ? touchEvent.changedTouches[0].clientY
+                   : mouseEvent.offsetY
+
+    coord.x = mouseX
+    coord.y = mouseY
+
+    const bcr = canvas.getBoundingClientRect()
+    if (touchEvent.changedTouches) {
+      const touchX = (touchEvent.changedTouches?.[0].clientX - bcr.left) * (200 / bcr.width)
+      const touchY = (touchEvent.changedTouches?.[0].clientY - bcr.top) * (200 / bcr.height)
+      coord.x = touchX
+      coord.y = touchY
+    } else {
+      
+      const touchX = (mouseEvent.clientX - bcr.left) * (200 / bcr.width)
+      const touchY = (mouseEvent.clientY - bcr.top) * (200 / bcr.height)
+      coord.x = touchX
+      coord.y = touchY
+    }
+  }
+
+  const startPainting = (event) => {
+    if (timer) {
+      clearTimeout(timer)
+    }
+
+    painting = true
+    updateCoords(event)
+  }
+
+  const stopPainting = (event) => {
+    painting = false
+
+    if (hasDrawn && event.type !== '') {
+      timer = setTimeout(async () => {
+        hasDrawn = false
+        const example = tf
+          .browser
+          .fromPixels(canvas)
+          .resizeBilinear([28, 28])
+          .mean(2)
+          .reshape([-1, 28, 28])
+
+        console.log(example.shape)
+
+        const tensor = model.predict(tf.div(example, 255))
+        const predictedLabel = await tensor.as1D().argMax().data()
+        const probability = await tensor.as1D().max().round(2).data()
+        console.log(probability)
+
+        const div = document.createElement('div')
+        
+          const img = document.createElement('img')
+          img.src = canvas.toDataURL()
+          img.width = 28
+          img.height = 28
+          div.appendChild(img)
+
+          div.appendChild(
+            document.createTextNode(`${Number(predictedLabel)} 
+            (${probability >= 0.9 ? (Number(probability) * 100 + '%') : '?'})`)
+          )
+
+        document.querySelector('#history').append(div)
+
+        context.fillRect(0, 0, 200, 200)
+      }, 2000)
+    }
+  }
+  
+  const sketch = (event) => {
+    if (!painting) return
+
+    hasDrawn = true
+
+    context.beginPath()
+    context.moveTo(coord.x, coord.y)
+    updateCoords(event)
+    context.lineTo(coord.x, coord.y)
+    context.stroke()
+  }
+</script>
